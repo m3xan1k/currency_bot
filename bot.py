@@ -1,13 +1,10 @@
 import xml.etree.ElementTree as ET
-import pprint
 from decimal import Decimal
+import logging
 
 import requests
 
 import conf
-
-
-pp = pprint.PrettyPrinter(indent=4)
 
 
 BASE_URL = f'https://api.telegram.org/bot{conf.TOKEN}'
@@ -34,9 +31,13 @@ def parse_answer(answer: dict) -> tuple:
 
 
 def _help():
-    message = '''
-        To receive currency exchange rate send message with currency code:
-    '''
+    message = 'To receive currency exchange rate send message with currency code:\n'
+    stock = _get_stock()
+    message_body = ''
+    for char_code, content in stock.items():
+        line = f'{char_code} — {content["name"]}\n'
+        message_body += line
+    return message + message_body
 
 
 def _dispatch_command(text: str) -> callable:
@@ -63,7 +64,10 @@ def _get_stock() -> dict:
         nominal_text = child.find('Nominal').text
         name = child.find('Name').text
         value_text = child.find('Value').text.replace(',', '.')
-        rate = (Decimal(value_text) / Decimal(nominal_text)).quantize(Decimal('1.00'))
+        rate = (
+            (Decimal(value_text) / Decimal(nominal_text))
+            .quantize(Decimal('1.00'))
+        )
         stock[char_code] = {'name': name, 'rate': rate}
     return stock
 
@@ -73,22 +77,27 @@ def construct_response(text: str) -> str:
     if text.startswith('/'):
         return handled_text
     stock = _get_stock()
-    currency = stock.get(handled_text)
-    reply = f'1 {currency['name']} costs {currency['rate']} rubles'
+    currency = stock.get(handled_text.upper())
+    if not currency:
+        return _help()
+    reply = f'1 {currency["name"]} costs {currency["rate"]} rubles'
     return reply
 
 
-def send_response(chat_id: int, text: str):
-    pass
+def send_response(chat_id: int, text: str) -> requests.Response:
+    url = f'{BASE_URL}/sendMessage'
+    params = {'chat_id': chat_id, 'text': text}
+    response = requests.get(url, params=params, proxies=conf.PROXIES)
+    return response
 
 
 if __name__ == '__main__':
     last_update_id = 0
     while True:
         response = get_updates(last_update_id)
-        pp.pprint(response.json())
         answer = response.json()
         if answer.get('ok') is True and answer['result']:
             chat_id, text, update_id = parse_answer(answer)
             last_update_id = update_id
             reply = construct_response(text)
+            send_result = send_response(chat_id=chat_id, text=reply)
