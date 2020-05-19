@@ -47,7 +47,8 @@ def _help():
 
 def _dispatch_command(text: str) -> callable:
     commands = {
-        '/help': _help
+        '/help': _help,
+        '/start': _help
     }
     handler = commands.get(text)
     return handler
