@@ -56,7 +56,8 @@ def _dispatch_command(text: str) -> callable:
 def _handle_text(text: str) -> str:
     if text.startswith('/'):
         handler = _dispatch_command(text)
-        return handler()
+        if handler:
+            return handler()
     return text
 
 
