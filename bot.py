@@ -1,10 +1,15 @@
 import xml.etree.ElementTree as ET
 from decimal import Decimal
-import logging
+import logging.config
 
 import requests
 
 import conf
+from log_settings import LOGGER_SETUP
+
+
+logging.config.dictConfig(LOGGER_SETUP)
+logger = logging.getLogger('bot_logger')
 
 
 BASE_URL = f'https://api.telegram.org/bot{conf.TOKEN}'
@@ -95,9 +100,13 @@ if __name__ == '__main__':
     last_update_id = 0
     while True:
         response = get_updates(last_update_id)
+        if not response.status_code == 200:
+            logger.error('Response is NOT OK')
         answer = response.json()
         if answer.get('ok') is True and answer['result']:
             chat_id, text, update_id = parse_answer(answer)
             last_update_id = update_id
             reply = construct_response(text)
             send_result = send_response(chat_id=chat_id, text=reply)
+            if not send_result.status_code == 200:
+                logger.error('send message is NOT OK')
